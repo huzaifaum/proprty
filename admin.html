@@ -385,35 +385,46 @@
     <script src="shared.js"></script>
     <script src="card.js"></script>
     <script>
-        // ===== SIMPLE CREDENTIALS =====
-        const ADMIN_KEY = 'adminSimpleCreds_v3';
+        // ===== SECURE CREDENTIALS (SHA-256 hashed, stored in localStorage) =====
+        const ROLE_KEY = 'adminCredentials_v2';
 
-        function getAdminCreds() {
-            try { return JSON.parse(localStorage.getItem(ADMIN_KEY)); } catch(e) {}
+        async function sha256(str) {
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function getStoredCreds() {
+            const raw = localStorage.getItem(ROLE_KEY);
+            if (raw) { try { return JSON.parse(raw); } catch (e) { } }
+            // Default credentials (pre-hashed placeholder; will be set on first use)
             return null;
         }
 
-        function initDefaultCreds() {
-            if (!localStorage.getItem(ADMIN_KEY)) {
-                localStorage.setItem(ADMIN_KEY, JSON.stringify({ username: 'admin', password: 'admin123' }));
+        async function initDefaultCreds() {
+            if (!localStorage.getItem(ROLE_KEY)) {
+                const uhash = await sha256('UaeAdmin#1');
+                const phash = await sha256('Adm!n@Secure99');
+                localStorage.setItem(ROLE_KEY, JSON.stringify({ usernameHash: uhash, passwordHash: phash }));
             }
         }
 
         let currentUser = null;
 
         // ===== LOGIN =====
-        function handleLogin() {
+        async function handleLogin() {
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value.trim();
             if (!u || !p) { alert('Please enter your username and password.'); return; }
-            initDefaultCreds();
-            const creds = getAdminCreds();
-            if (u === creds.username && p === creds.password) {
-                currentUser = { username: u, type: 'admin' };
+            const creds = getStoredCreds();
+            if (!creds) { alert('Credentials not initialized. Please refresh.'); return; }
+            const uhash = await sha256(u);
+            const phash = await sha256(p);
+            if (uhash === creds.usernameHash && phash === creds.passwordHash) {
+                currentUser = { username: 'admin', type: 'admin' };
                 sessionStorage.setItem('currentUser_admin', JSON.stringify(currentUser));
                 showDashboard();
             } else {
-                alert('Wrong username or password!\n\nDefault: admin / admin123');
+                alert('Invalid admin credentials. Access denied.');
             }
         }
 
@@ -438,15 +449,18 @@
                 });
             }
         }
-        function saveNewCredentials() {
+        async function saveNewCredentials() {
             const newU = document.getElementById('newUsername').value.trim();
             const newP = document.getElementById('newPassword').value;
             const confP = document.getElementById('confirmPassword').value;
             if (!newU || !newP) { alert('Username and password are required.'); return; }
             if (newP !== confP) { alert('Passwords do not match.'); return; }
-            localStorage.setItem(ADMIN_KEY, JSON.stringify({ username: newU, password: newP }));
+            if (newP.length < 8) { alert('Password must be at least 8 characters.'); return; }
+            const uhash = await sha256(newU);
+            const phash = await sha256(newP);
+            localStorage.setItem(ROLE_KEY, JSON.stringify({ usernameHash: uhash, passwordHash: phash }));
             closeChangeCredentials();
-            showToast('Credentials updated! New login: ' + newU + ' / ' + newP);
+            showToast('Admin credentials updated successfully!');
         }
         function showDashboard() {
             document.getElementById('loginPage').style.display = 'none';
@@ -663,8 +677,8 @@ var s1=document.createElement("script"),s0=document.getElementsByTagName("script
         document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeNavDrawer(); });
 
         // ===== AUTO SESSION =====
-    (function(){
-    initDefaultCreds();
+    (async function(){
+    await initDefaultCreds();
     const saved=sessionStorage.getItem('currentUser_admin');
     if(saved){try{currentUser=JSON.parse(saved);showDashboard();}catch(e){sessionStorage.removeItem('currentUser_admin');}}
     })();
