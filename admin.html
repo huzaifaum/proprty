@@ -385,31 +385,42 @@
     <script src="shared.js"></script>
     <script src="card.js"></script>
     <script>
-        // ===== SIMPLE CREDENTIALS =====
-        const ADMIN_CREDS_KEY = 'adminSimpleCreds';
+        // ===== SECURE CREDENTIALS (SHA-256 hashed, stored in localStorage) =====
+        const ROLE_KEY = 'adminCredentials_v2';
 
-        function getStoredCreds() {
-            const raw = localStorage.getItem(ADMIN_CREDS_KEY);
-            if (raw) { try { return JSON.parse(raw); } catch(e){} }
-            return { username: 'admin', password: 'admin123' };
+        async function sha256(str) {
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        function initDefaultCreds() {
-            if (!localStorage.getItem(ADMIN_CREDS_KEY)) {
-                localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username: 'admin', password: 'admin123' }));
+        function getStoredCreds() {
+            const raw = localStorage.getItem(ROLE_KEY);
+            if (raw) { try { return JSON.parse(raw); } catch (e) { } }
+            // Default credentials (pre-hashed placeholder; will be set on first use)
+            return null;
+        }
+
+        async function initDefaultCreds() {
+            if (!localStorage.getItem(ROLE_KEY)) {
+                const uhash = await sha256('UaeAdmin#1');
+                const phash = await sha256('Adm!n@Secure99');
+                localStorage.setItem(ROLE_KEY, JSON.stringify({ usernameHash: uhash, passwordHash: phash }));
             }
         }
 
         let currentUser = null;
 
         // ===== LOGIN =====
-        function handleLogin() {
+        async function handleLogin() {
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value.trim();
             if (!u || !p) { alert('Please enter your username and password.'); return; }
             const creds = getStoredCreds();
-            if (u === creds.username && p === creds.password) {
-                currentUser = { username: u, type: 'admin' };
+            if (!creds) { alert('Credentials not initialized. Please refresh.'); return; }
+            const uhash = await sha256(u);
+            const phash = await sha256(p);
+            if (uhash === creds.usernameHash && phash === creds.passwordHash) {
+                currentUser = { username: 'admin', type: 'admin' };
                 sessionStorage.setItem('currentUser_admin', JSON.stringify(currentUser));
                 showDashboard();
             } else {
@@ -438,16 +449,18 @@
                 });
             }
         }
-        function saveNewCredentials() {
+        async function saveNewCredentials() {
             const newU = document.getElementById('newUsername').value.trim();
             const newP = document.getElementById('newPassword').value;
             const confP = document.getElementById('confirmPassword').value;
             if (!newU || !newP) { alert('Username and password are required.'); return; }
             if (newP !== confP) { alert('Passwords do not match.'); return; }
-            if (newP.length < 4) { alert('Password must be at least 4 characters.'); return; }
-            localStorage.setItem(ADMIN_CREDS_KEY, JSON.stringify({ username: newU, password: newP }));
+            if (newP.length < 8) { alert('Password must be at least 8 characters.'); return; }
+            const uhash = await sha256(newU);
+            const phash = await sha256(newP);
+            localStorage.setItem(ROLE_KEY, JSON.stringify({ usernameHash: uhash, passwordHash: phash }));
             closeChangeCredentials();
-            showToast('Admin credentials updated! New: ' + newU + ' / ' + newP);
+            showToast('Admin credentials updated successfully!');
         }
         function showDashboard() {
             document.getElementById('loginPage').style.display = 'none';
@@ -665,7 +678,7 @@ var s1=document.createElement("script"),s0=document.getElementsByTagName("script
 
         // ===== AUTO SESSION =====
     (async function(){
-    initDefaultCreds();
+    await initDefaultCreds();
     const saved=sessionStorage.getItem('currentUser_admin');
     if(saved){try{currentUser=JSON.parse(saved);showDashboard();}catch(e){sessionStorage.removeItem('currentUser_admin');}}
     })();

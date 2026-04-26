@@ -56,7 +56,7 @@ function buildPropertyCardHTML(p){
         };
         nearestPlacesHTML = `
             <div class="nearest-places-section">
-                <div class="nearest-places-title"><i class="fas fa-location-dot"></i> Nearby Places</div>
+                <div class="nearest-places-title"><i class="fas fa-location-dot"></i> Exact Location</div>
                 <div class="nearest-places-list">
                     ${p.nearestPlaces.map(place => `
                         <div class="nearest-place-chip" onclick="event.stopPropagation();window.open('${place.mapLink || `https://maps.google.com/?q=${encodeURIComponent(place.name)}`}', '_blank')">
