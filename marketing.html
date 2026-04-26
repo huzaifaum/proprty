@@ -311,24 +311,17 @@
     <script src="card.js"></script>
     <script>
         // ===== SECURE CREDENTIALS (SHA-256 hashed) =====
-        const ROLE_KEY = 'marketingCredentials_v2';
-
-        async function sha256(str) {
-            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-        }
+        const MKT_CREDS_KEY = 'marketingSimpleCreds';
 
         function getStoredCreds() {
-            const raw = localStorage.getItem(ROLE_KEY);
-            if (raw) { try { return JSON.parse(raw); } catch (e) { } }
-            return null;
+            const raw = localStorage.getItem(MKT_CREDS_KEY);
+            if (raw) { try { return JSON.parse(raw); } catch(e){} }
+            return { username: 'marketing', password: 'marketing123' };
         }
 
-        async function initDefaultCreds() {
-            if (!localStorage.getItem(ROLE_KEY)) {
-                const uhash = await sha256('Marketing#1');
-                const phash = await sha256('Mkt@UAE2024!');
-                localStorage.setItem(ROLE_KEY, JSON.stringify({ usernameHash: uhash, passwordHash: phash }));
+        function initDefaultCreds() {
+            if (!localStorage.getItem(MKT_CREDS_KEY)) {
+                localStorage.setItem(MKT_CREDS_KEY, JSON.stringify({ username: 'marketing', password: 'marketing123' }));
             }
         }
 
@@ -373,18 +366,16 @@
                 });
             }
         }
-        async function saveNewCredentials() {
+        function saveNewCredentials() {
             const newU = document.getElementById('newUsername').value.trim();
             const newP = document.getElementById('newPassword').value;
             const confP = document.getElementById('confirmPassword').value;
             if (!newU || !newP) { alert('Username and password are required.'); return; }
             if (newP !== confP) { alert('Passwords do not match.'); return; }
-            if (newP.length < 8) { alert('Password must be at least 8 characters.'); return; }
-            const uhash = await sha256(newU);
-            const phash = await sha256(newP);
-            localStorage.setItem(ROLE_KEY, JSON.stringify({ usernameHash: uhash, passwordHash: phash }));
+            if (newP.length < 4) { alert('Password must be at least 4 characters.'); return; }
+            localStorage.setItem(MKT_CREDS_KEY, JSON.stringify({ username: newU, password: newP }));
             closeChangeCredentials();
-            showToast('Marketing credentials updated successfully!');
+            showToast('Marketing credentials updated! New: ' + newU + ' / ' + newP);
         }
 
         function showDashboard() {
@@ -519,7 +510,7 @@
         })();
         // ===== AUTO SESSION =====
         (async function () {
-            await initDefaultCreds();
+            initDefaultCreds();
             const saved = sessionStorage.getItem('currentUser_marketing');
             if (saved) { try { currentUser = JSON.parse(saved); showDashboard(); } catch (e) { sessionStorage.removeItem('currentUser_marketing'); } }
         })();

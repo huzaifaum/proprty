@@ -28,10 +28,36 @@
       <h1>UAE Properties</h1><p class="subtitle">User Dashboard</p>
     </div>
     <div style="text-align:center;margin-bottom:18px"><span class="role-badge user"><i class="fas fa-user"></i> User Access</span></div>
-    <div class="login-form">
-      <div class="form-group"><label style="color: #000;">Username</label><input type="text" id="username" autocomplete="off"></div>
-      <div class="form-group"><label style="color: #000;">Password</label><input type="password" id="password" autocomplete="off"></div>
-      <button class="login-btn" onclick="handleLogin()">Login as User</button>
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;margin-bottom:20px;border:2px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <button id="loginTab" onclick="showLoginTab()" style="flex:1;padding:12px;border:none;background:var(--primary);color:#000;font-weight:700;font-size:13px;cursor:pointer;font-family:Poppins,sans-serif;transition:all 0.2s" class="active-tab">
+        <i class="fas fa-sign-in-alt"></i> Login
+      </button>
+      <button id="registerTab" onclick="showRegisterTab()" style="flex:1;padding:12px;border:none;background:#f3f4f6;color:#555;font-weight:700;font-size:13px;cursor:pointer;font-family:Poppins,sans-serif;transition:all 0.2s">
+        <i class="fas fa-user-plus"></i> Register
+      </button>
+    </div>
+
+    <!-- Login Form -->
+    <div id="loginFormWrap">
+      <div class="login-form">
+        <div class="form-group"><label style="color:#000">Username</label><input type="text" id="username" placeholder="Enter username" autocomplete="off"></div>
+        <div class="form-group"><label style="color:#000">Password</label><input type="password" id="password" placeholder="Enter password" autocomplete="off"></div>
+        <button class="login-btn" onclick="handleLogin()">Login as User</button>
+        <p style="text-align:center;margin-top:12px;font-size:12px;color:#888">No account? <a href="#" onclick="showRegisterTab();return false" style="color:var(--primary);font-weight:600">Register here</a></p>
+      </div>
+    </div>
+
+    <!-- Register Form -->
+    <div id="registerFormWrap" style="display:none">
+      <div class="login-form">
+        <div class="form-group"><label style="color:#000">Full Name</label><input type="text" id="regName" placeholder="Your full name" autocomplete="off"></div>
+        <div class="form-group"><label style="color:#000">Username</label><input type="text" id="regUsername" placeholder="Choose a username" autocomplete="off"></div>
+        <div class="form-group"><label style="color:#000">Password</label><input type="password" id="regPassword" placeholder="Min 4 characters" autocomplete="new-password"></div>
+        <div class="form-group"><label style="color:#000">Confirm Password</label><input type="password" id="regConfirmPassword" placeholder="Repeat password" autocomplete="new-password"></div>
+        <button class="login-btn" onclick="handleRegister()" style="background:linear-gradient(135deg,#10b981,#059669)">Create Account</button>
+        <p style="text-align:center;margin-top:12px;font-size:12px;color:#888">Already have account? <a href="#" onclick="showLoginTab();return false" style="color:var(--primary);font-weight:600">Login here</a></p>
+      </div>
     </div>
     <div style="text-align:center;margin-top:16px;font-size:13px;color:#666">Other: <a href="admin.html" style="color:#ef4444">Admin</a> · <a href="marketing.html" style="color:#10b981">Marketing</a></div>
     <div style="text-align:center;margin-top:10px;font-size:13px"><a href="index.html" style="color:#888;display:inline-flex;align-items:center;gap:5px"><i class="fas fa-home"></i> Back to Home Portal</a></div>
@@ -49,7 +75,7 @@
     <div class="nav-right"><div class="nav-links">
       <span class="nav-link active" onclick="showSection('properties',this)">Properties</span>
       <span class="nav-link" onclick="showSection('upload',this)">Upload Property</span>
-      <div class="user-info"><div class="user-avatar" id="userAvatar">U</div><div class="user-details"><div class="user-name" id="displayName">User</div><div class="user-type" style="color:var(--primary)">Property User</div></div></div>
+      <div class="user-info"><div class="user-avatar" id="userAvatar">U</div><div class="user-details"><div class="user-name" id="displayName">User</div><div class="user-type" style="color:var(--primary)">Property User &nbsp;<span id="userLoginTime" style="font-size:10px;color:#aaa"></span></div></div></div>
       <button class="logout-btn" onclick="logout()">Logout</button>
     </div></div>
   </nav>
@@ -251,50 +277,102 @@
 <script src="shared.js"></script>
 <script src="card.js"></script>
 <script>
-// ===== SECURE CREDENTIALS (SHA-256 hashed) =====
-const ROLE_KEY = 'userCredentials_v2';
+// ===== USER ACCOUNT SYSTEM =====
+const USER_ACCOUNTS_KEY = 'uaeUserAccounts';
 
-async function sha256(str){
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+function getAllAccounts() {
+    try { return JSON.parse(localStorage.getItem(USER_ACCOUNTS_KEY)) || []; } catch(e){ return []; }
 }
 
-function getStoredCreds(){
-    const raw = localStorage.getItem(ROLE_KEY);
-    if(raw){ try{ return JSON.parse(raw); } catch(e){} }
-    return null;
+function saveAllAccounts(accounts) {
+    localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify(accounts));
 }
 
-async function initDefaultCreds(){
-    if(!localStorage.getItem(ROLE_KEY)){
-        const uhash = await sha256('UaeAgent#7');
-        const phash = await sha256('Prop@User2024!');
-        localStorage.setItem(ROLE_KEY, JSON.stringify({usernameHash: uhash, passwordHash: phash}));
+let currentUser = null;
+
+// ===== SHOW / HIDE LOGIN vs REGISTER =====
+function showLoginTab() {
+    document.getElementById('loginFormWrap').style.display = 'block';
+    document.getElementById('registerFormWrap').style.display = 'none';
+    document.getElementById('loginTab').classList.add('active-tab');
+    document.getElementById('registerTab').classList.remove('active-tab');
+}
+
+function showRegisterTab() {
+    document.getElementById('loginFormWrap').style.display = 'none';
+    document.getElementById('registerFormWrap').style.display = 'block';
+    document.getElementById('registerTab').classList.add('active-tab');
+    document.getElementById('loginTab').classList.remove('active-tab');
+}
+
+// ===== LOGIN =====
+function handleLogin() {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value.trim();
+    if (!u || !p) { alert('Please enter your username and password.'); return; }
+    const accounts = getAllAccounts();
+    const found = accounts.find(a => a.username === u && a.password === p);
+    if (found) {
+        currentUser = { username: found.username, name: found.name, type: 'user', loginTime: new Date().toISOString() };
+        sessionStorage.setItem('currentUser_user', JSON.stringify(currentUser));
+        showDashboard();
+    } else {
+        alert('Invalid credentials. Please check your username and password, or register a new account.');
     }
 }
 
-let currentUser=null;
-
-async function handleLogin(){
-    const u=document.getElementById('username').value.trim();const p=document.getElementById('password').value.trim();
-    if(!u||!p){alert('Please enter your username and password.');return;}
-    const creds=getStoredCreds();
-    if(!creds){alert('Credentials not initialized. Please refresh.');return;}
-    const uhash=await sha256(u);const phash=await sha256(p);
-    if(uhash===creds.usernameHash&&phash===creds.passwordHash){
-        currentUser={username:'user',type:'user'};
-        sessionStorage.setItem('currentUser_user',JSON.stringify(currentUser));showDashboard();
-    } else alert('Invalid credentials. Access denied.');
+// ===== REGISTER =====
+function handleRegister() {
+    const name = document.getElementById('regName').value.trim();
+    const u = document.getElementById('regUsername').value.trim();
+    const p = document.getElementById('regPassword').value.trim();
+    const cp = document.getElementById('regConfirmPassword').value.trim();
+    if (!name || !u || !p || !cp) { alert('Please fill all fields.'); return; }
+    if (p !== cp) { alert('Passwords do not match.'); return; }
+    if (p.length < 4) { alert('Password must be at least 4 characters.'); return; }
+    const accounts = getAllAccounts();
+    if (accounts.find(a => a.username === u)) { alert('Username already taken. Please choose another.'); return; }
+    const newAccount = { name, username: u, password: p, createdAt: new Date().toISOString() };
+    accounts.push(newAccount);
+    saveAllAccounts(accounts);
+    alert('Account created successfully! You can now login.');
+    document.getElementById('regName').value = '';
+    document.getElementById('regUsername').value = '';
+    document.getElementById('regPassword').value = '';
+    document.getElementById('regConfirmPassword').value = '';
+    showLoginTab();
+    document.getElementById('username').value = u;
 }
 
-function logout(){currentUser=null;sessionStorage.removeItem('currentUser_user');document.getElementById('loginPage').style.display='flex';document.getElementById('dashboard').classList.remove('active');}
+function logout() {
+    currentUser = null;
+    sessionStorage.removeItem('currentUser_user');
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('dashboard').classList.remove('active');
+}
 
 function showDashboard(){
-    document.getElementById('loginPage').style.display='none';document.getElementById('dashboard').classList.add('active');
-    document.getElementById('displayName').textContent='User';document.getElementById('userAvatar').textContent='U';
+    document.getElementById('loginPage').style.display='none';
+    document.getElementById('dashboard').classList.add('active');
+    const name = currentUser.name || currentUser.username;
+    const initial = name.charAt(0).toUpperCase();
+    document.getElementById('displayName').textContent = name;
+    document.getElementById('userAvatar').textContent = initial;
+    // Show login time in navbar
+    const loginTimeEl = document.getElementById('userLoginTime');
+    if(loginTimeEl) {
+        const now = new Date(currentUser.loginTime);
+        loginTimeEl.textContent = 'Login: ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    }
+    // Update drawer
+    const dn = document.getElementById('drawerName');
+    const da = document.getElementById('drawerAvatar');
+    if(dn) dn.textContent = name;
+    if(da) da.textContent = initial;
     const bellBtn=document.getElementById('notifBellBtn');if(bellBtn)bellBtn.style.display='flex';
     document.getElementById('profileCode').value=Math.floor(560+Math.random()*100);
-    populateFilters();initNavbarSearch();applyFilters();setTimeout(checkAvailabilityNotifications,2000);showToast('Welcome back!');
+    populateFilters();initNavbarSearch();applyFilters();setTimeout(checkAvailabilityNotifications,2000);
+    showToast('Welcome, ' + name + '! Logged in at ' + new Date(currentUser.loginTime).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
 }
 
 function populateFilters(){document.getElementById('propertyTypeFilters').innerHTML=propertyTypes.map(t=>`<label class="filter-checkbox"><input type="checkbox" value="${t}"> ${t}</label>`).join('');}
@@ -479,9 +557,8 @@ var s1=document.createElement("script"),s0=document.getElementsByTagName("script
 })();
 // ===== AUTO SESSION =====
 (async function(){
-    await initDefaultCreds();
     const saved=sessionStorage.getItem('currentUser_user');
-    if(saved){try{currentUser=JSON.parse(saved);showDashboard();}catch(e){sessionStorage.removeItem('currentUser_user');}}
+    if(saved){try{currentUser=JSON.parse(saved);if(!currentUser.loginTime)currentUser.loginTime=new Date().toISOString();showDashboard();}catch(e){sessionStorage.removeItem('currentUser_user');}}
 })();
 
   // ===== MOBILE DRAWER =====
